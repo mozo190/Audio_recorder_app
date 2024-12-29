@@ -1,6 +1,6 @@
 import os
+import time
 import wave
-from datetime import time
 from threading import Thread
 
 import pyaudio
