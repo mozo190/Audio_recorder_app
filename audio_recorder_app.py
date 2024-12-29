@@ -1,50 +1,67 @@
-from kivy.core.window import Window
-from kivymd.app import MDApp
-import kivy
-
-from kivy.uix.button import Button
-from threading import Thread
-import pyaudio
+import os
 import wave
+from datetime import time
+from threading import Thread
 
+import pyaudio
+from kivy.core.window import Window
+from kivy.uix.button import Button
+from kivy.uix.label import Label
+from kivymd.app import MDApp
 from kivymd.uix.relativelayout import MDRelativeLayout
 
 Window.size = (350, 300)
 
+
 class AudioRecorderApp(MDApp):
     # Function to record audio
-    def record_audio(self, event):
-        # Set the format_type type and the sample rate
-        format_type = pyaudio.paInt16 # 16-bit resolution
+    def record_audio(self):
+        self.recording_active = True
+        self.record_button.text = 'Recording...'
+        # Set the format type and the sample rate
+        format = pyaudio.paInt16  # 16-bit resolution
         rate = 44100
         chunk = 1024
-        channels = 2
-        seconds = 5
+        channels = 1
 
         # Create an instance of the pyaudio class
         audio = pyaudio.PyAudio()
 
-        # Open the audio stream
-        stream = audio.open(format=format_type, channels=channels,
-                            rate=rate, input=True,
-                            frames_per_buffer=chunk)
+        # Try to open the audio stream
+        try:
+            stream = audio.open(format=format, channels=channels,
+                                rate=rate, input=True,
+                                frames_per_buffer=chunk)
+        except Exception as e:
+            print(f"Error initializing audio stream: {e}")
+            return
 
         frames = []
+        start_time = time.time()
 
         # Record audio for a given number of seconds
-        for i in range(0, int(rate / chunk * seconds)):
-            data = stream.read(chunk)
-            frames.append(data)
+        try:
+            while self.recording_active:
+                elapsed_time = time.time() - start_time
+                self.durations_time_label.text = f'Duration: {int(elapsed_time // 60)}:{int(elapsed_time % 60):02d}'
 
-        # Close the audio stream
-        stream.stop_stream()
-        stream.close()
-        audio.terminate()
+                data = stream.read(chunk)
+                frames.append(data)
+        except Exception as e:
+            print(f"Error recording audio: {e}")
+        finally:
+            # Close the audio stream
+            stream.stop_stream()
+            stream.close()
+            audio.terminate()
+
+        print('Recording complete')
 
         # Save the audio to a file
-        waveFile = wave.open('output.wav', 'wb')
+        os.makedirs('assets/audio', exist_ok=True)
+        waveFile = wave.open('assets/audio/output.wav', 'wb')
         waveFile.setnchannels(channels)
-        waveFile.setsampwidth(audio.get_sample_size(format_type))
+        waveFile.setsampwidth(audio.get_sample_size(format))
         waveFile.setframerate(rate)
         waveFile.writeframes(b''.join(frames))
         waveFile.close()
@@ -54,27 +71,43 @@ class AudioRecorderApp(MDApp):
         self.record_thread = Thread(target=self.record_audio)
         self.record_thread.start()
 
+        # Enable the stop button
+        self.stop_button.disabled = False
+        # Disable the record button
+        self.record_button.disabled = True
+
     def stop_recording(self, instance):
-        pass
+        self.recording_active = False
+        if self.record_thread and self.record_thread.is_alive():
+            # Stop the recording thread
+            self.record_thread.join()
+
+        # Disable the stop button
+        self.stop_button.disabled = True
+        # Enable the record button
+        self.record_button.disabled = False
 
     def build(self):
+        self.recording_active = False
 
         layout = MDRelativeLayout(md_bg_color=(173 / 255, 181 / 255, 189 / 255, 1))
-
-
 
         # Add your layout here
         self.record_button = Button(text='Record', pos_hint={'center_x': 0.5, 'center_y': 0.7},
                                     size_hint=(0.4, 0.3), on_press=self.start_recording, bold=True,
                                     background_color=(52 / 255, 58 / 255, 64 / 255, 1))
         self.stop_button = Button(text='Stop Recording', pos_hint={'center_x': 0.5, 'center_y': 0.3},
-                                    size_hint=(0.7, 0.3), on_press=self.stop_recording, bold=True,
-                                    background_color=(52 / 255, 58 / 255, 64 / 255, 1), disabled=True)
+                                  size_hint=(0.7, 0.3), on_press=self.stop_recording, bold=True,
+                                  background_color=(52 / 255, 58 / 255, 64 / 255, 1), disabled=True)
+        self.durations_time_label = Label(text='Duration: 0:00', pos_hint={'center_x': 0.5, 'center_y': 0.5},
+                                          font_size=20)
 
         layout.add_widget(self.record_button)
+        layout.add_widget(self.durations_time_label)
         layout.add_widget(self.stop_button)
 
         return layout
+
 
 if __name__ == '__main__':
     AudioRecorderApp().run()
