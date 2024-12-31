@@ -15,6 +15,14 @@ Window.size = (350, 300)
 
 class AudioRecorderApp(MDApp):
     # Function to record audio
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.record_thread = None
+        self.durations_time_label = None
+        self.stop_button = None
+        self.record_button = None
+        self.recording_active = None
+
     def record_audio(self):
         self.recording_active = True
         self.record_button.text = 'Recording...'
